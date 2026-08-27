@@ -58,6 +58,11 @@ def main():
         default=None,
         help="Path to save output JSON report (if omitted, prints summary to terminal)"
     )
+    parser.add_argument(
+        "--ask", "-q",
+        default=None,
+        help="Ask a question about the meeting (Ask AI with timestamp references)"
+    )
 
     args = parser.parse_args()
 
@@ -78,18 +83,55 @@ def main():
         model_name=args.model
     )
 
+    # If --ask question is requested:
+    if args.ask:
+        print(f"[*] Asking AI: '{args.ask}'...")
+        qa_answer = service.ask_question_sync(
+            segments=transcript_data.get("segments", []),
+            question=args.ask,
+            meeting_title=transcript_data.get("meeting_title")
+        )
+        print("\n" + "=" * 60)
+        print(f"  ASK AI ANSWER (with Timestamp References)")
+        print("=" * 60)
+        print(f"\nQuestion: {qa_answer.question}\n")
+        print(f"Answer: {qa_answer.answer}\n")
+        if qa_answer.relevant_timestamps:
+            ts_str = ", ".join([f"[{t.formatted}]" for t in qa_answer.relevant_timestamps])
+            print(f"Relevant Timestamps: {ts_str}")
+        if qa_answer.referenced_speakers:
+            print(f"Referenced Speakers: {', '.join(qa_answer.referenced_speakers)}")
+        if qa_answer.evidence_quotes:
+            print("Quotes / Evidence:")
+            for q in qa_answer.evidence_quotes:
+                print(f"  - \"{q}\"")
+        print("=" * 60 + "\n")
+        return
+
     print(f"[*] Analyzing '{input_file.name}' ({len(transcript_data.get('segments', []))} segments)...")
     report = service.analyze_meeting_sync(transcript_data)
 
     print("\n" + "=" * 60)
     print(f"  AI MEETING INTELLIGENCE REPORT: {report.title}")
     print("=" * 60)
+
+    if report.dashboard_metrics:
+        dm = report.dashboard_metrics
+        print(f"\n[Dashboard Metrics]")
+        print(f" - Duration: {dm.duration_formatted} | Actions: {dm.action_items_count} | Decisions: {dm.decisions_count} | Deadlines: {dm.upcoming_deadlines_count} | Sentiment: {dm.overall_sentiment_label}")
+
     print(f"\n[Executive Summary]\n{report.summary.executive_summary}\n")
 
     print(f"[Participants ({len(report.participants)})]")
     for p in report.participants:
         name_str = f" ({p.detected_name})" if p.detected_name else ""
         print(f" - {p.speaker_id}{name_str}: {p.spoken_seconds}s ({p.contribution_percentage}% contribution, {p.turn_count} turns)")
+
+    print(f"\n[Speaker-wise Transcript ({len(report.speaker_wise_transcript)} turns)]")
+    for s in report.speaker_wise_transcript[:4]:
+        print(f" - [{s.timestamp_formatted}] {s.speaker_name}: {s.text[:80]}...")
+    if len(report.speaker_wise_transcript) > 4:
+        print(f"   ... ({len(report.speaker_wise_transcript) - 4} more turns)")
 
     print(f"\n[Decisions Made ({len(report.decisions)})]")
     for d in report.decisions:

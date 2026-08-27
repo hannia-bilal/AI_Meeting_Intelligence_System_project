@@ -60,3 +60,19 @@ def test_normalize_deadline_in_x_days():
     ref_date = "2026-08-28"
     assert normalize_deadline("in 2 days", ref_date) == "2026-08-30"
     assert normalize_deadline("in a week", ref_date) == "2026-09-04"
+
+
+def test_normalize_deadline_with_time_phrases():
+    ref_date = "2026-08-28"
+    assert normalize_deadline("tonight at 11 PM", ref_date) == "2026-08-28"
+    assert normalize_deadline("tomorrow morning", ref_date) == "2026-08-29"
+    assert normalize_deadline("tomorrow at 5pm", ref_date) == "2026-08-29"
+    assert normalize_deadline("next Monday morning", ref_date) == "2026-08-31"
+    assert normalize_deadline("end of this week", ref_date) == "2026-08-28"
+
+
+def test_format_duration_human():
+    from src.ai_intelligence.normalizers import format_duration_human
+    assert format_duration_human(75) == "1m 15s"
+    assert format_duration_human(1845) == "30m 45s"
+    assert format_duration_human(3665) == "1h 01m 05s"

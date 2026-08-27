@@ -179,18 +179,68 @@ def build_analysis_user_prompt(
 ) -> str:
     """
     Constructs the analysis prompt with meeting metadata and formatted transcript.
+    Explicitly tailors instructions based on requested summary depth.
     """
     date_info = f"Meeting Reference Date: {meeting_date}\n" if meeting_date else ""
     title_info = f"Known Meeting Title/Topic: {meeting_title}\n" if meeting_title else ""
-    summary_pref = f"Preferred Summary Scope: {summary_type.value}\n"
+
+    if summary_type == SummaryType.SHORT:
+        summary_instruction = (
+            "User requested SHORT summary: Provide a punchy, 1-paragraph executive summary "
+            "highlighting immediate takeaways, and keep detailed_summary concise."
+        )
+    elif summary_type == SummaryType.DETAILED:
+        summary_instruction = (
+            "User requested DETAILED summary: In addition to the executive overview, provide an "
+            "exhaustive section-by-section breakdown in detailed_summary with subheadings."
+        )
+    else:
+        summary_instruction = (
+            "User requested BOTH: Provide a clear high-level executive summary AND an in-depth "
+            "thematic breakdown in detailed_summary."
+        )
 
     return f"""Please analyze the following meeting transcript and produce the structured intelligence JSON report.
 
-{title_info}{date_info}{summary_pref}
+{title_info}{date_info}Summary Requirement: {summary_instruction}
+
 TRANSCRIPT:
 ---
 {formatted_transcript}
 ---
 
 Respond strictly with valid JSON conforming to the requested schema. Do not output markdown backticks or commentary outside the JSON.
+"""
+
+
+# ==============================================================================
+# Meeting Q&A ("Ask AI") Prompts with Timestamp References
+# ==============================================================================
+
+QA_SYSTEM_PROMPT = """You are an AI Meeting Assistant answering user questions about a specific meeting.
+Ground all answers strictly on the provided meeting transcript and facts. Do not speculate or invent information.
+
+CRITICAL REQUIREMENT:
+You must provide relevant timestamp references in MM:SS or HH:MM:SS format where the topic or decision was discussed,
+so the user can click the timestamp to jump directly to that part of the recording.
+
+Respond with a JSON object containing:
+- "answer": Direct, helpful answer explaining what happened.
+- "relevant_timestamps": List of objects with "seconds" (float) and "formatted" (string MM:SS).
+- "referenced_speakers": List of speaker names or IDs involved.
+- "evidence_quotes": List of short direct quotes from the transcript supporting the answer.
+"""
+
+
+def build_qa_user_prompt(formatted_transcript: str, question: str, meeting_title: str = None) -> str:
+    title_context = f"Meeting: {meeting_title}\n" if meeting_title else ""
+    return f"""{title_context}QUESTION: {question}
+
+MEETING TRANSCRIPT:
+---
+{formatted_transcript}
+---
+
+Answer the question factually based ONLY on this meeting transcript. Include exact timestamp references.
+Return your answer in valid JSON format.
 """

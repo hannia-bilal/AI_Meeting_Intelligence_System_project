@@ -46,3 +46,17 @@ def test_api_db_payload_endpoint():
     assert data["status"] == "success"
     assert data["database_records"]["meeting_id"] == "meet_abc"
     assert "meeting_updates" in data["database_records"]
+    assert "speaker_wise_transcript" in data["database_records"]
+
+
+def test_api_ask_endpoint():
+    payload = {
+        "question": "What did we decide about the product launch?",
+        "transcript_text": "[02:29] SPEAKER_00: We decided to launch the product on September 1."
+    }
+    res = client.post("/api/v1/intelligence/ask?provider=mock", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["question"] == payload["question"]
+    assert "answer" in data
+    assert len(data["relevant_timestamps"]) > 0

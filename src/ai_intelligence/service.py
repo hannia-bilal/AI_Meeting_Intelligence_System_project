@@ -56,6 +56,36 @@ class MeetingIntelligenceService:
         """
         return await asyncio.to_thread(self.analyze_meeting_sync, request_data)
 
+    def ask_question_sync(
+        self,
+        segments: Any,
+        question: str,
+        meeting_title: Optional[str] = None
+    ):
+        """
+        Answers a user question about a meeting with timestamp references (Ask AI).
+        Accepts a list of TranscriptSegment or list of dicts.
+        """
+        from .schemas import TranscriptSegment
+        parsed_segments = []
+        for s in segments:
+            if isinstance(s, dict):
+                parsed_segments.append(TranscriptSegment(**s))
+            else:
+                parsed_segments.append(s)
+        return self._analyzer.answer_question(parsed_segments, question, meeting_title)
+
+    async def ask_question(
+        self,
+        segments: Any,
+        question: str,
+        meeting_title: Optional[str] = None
+    ):
+        """
+        Asynchronous wrapper for Ask AI feature.
+        """
+        return await asyncio.to_thread(self.ask_question_sync, segments, question, meeting_title)
+
     @staticmethod
     def to_database_records(report: MeetingIntelligenceReport, meeting_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -66,6 +96,8 @@ class MeetingIntelligenceService:
         - decisions (decision, rationale, timestamp)
         - deadlines (item, raw_text, normalized_date)
         - participants (speaker_id, detected_name, contribution_percentage)
+        - transcripts (speaker-wise segments with formatted timestamps)
+        - dashboard_metrics (pre-calculated metrics for fast querying)
         """
         return {
             "meeting_id": meeting_id,
@@ -78,10 +110,12 @@ class MeetingIntelligenceService:
                 "tone_notes": report.sentiment.tone_summary,
             },
             "participants": [p.model_dump() for p in report.participants],
+            "speaker_wise_transcript": [s.model_dump() for s in report.speaker_wise_transcript],
             "action_items": [a.model_dump() for a in report.action_items],
             "decisions": [d.model_dump() for d in report.decisions],
             "deadlines": [dl.model_dump() for dl in report.deadlines],
             "key_points": [kp.model_dump() for kp in report.key_points],
             "unresolved_issues": [u.model_dump() for u in report.unresolved_issues],
             "follow_ups": [f.model_dump() for f in report.follow_ups],
+            "dashboard_metrics": report.dashboard_metrics.model_dump() if report.dashboard_metrics else None,
         }

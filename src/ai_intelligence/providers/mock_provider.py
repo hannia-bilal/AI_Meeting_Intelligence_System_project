@@ -27,9 +27,19 @@ class MockLLMProvider(BaseLLMProvider):
         user_prompt: str,
         json_schema: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Parses keywords from the user prompt and returns realistic structured JSON.
-        """
+        # Handle Meeting Q&A ("Ask AI") queries
+        if "QUESTION:" in user_prompt:
+            return {
+                "answer": "The team decided to launch the product on September 1 and agreed to review the staging environment next Monday.",
+                "relevant_timestamps": [
+                    {"seconds": 149.0, "formatted": "02:29"}
+                ],
+                "referenced_speakers": ["SPEAKER_00", "Ali"],
+                "evidence_quotes": [
+                    "We decided to launch the product on September 1."
+                ]
+            }
+
         # Look for speaker cues and text
         has_launch = "launch" in user_prompt.lower()
         has_backend = "backend" in user_prompt.lower()

@@ -74,11 +74,41 @@ def test_analyzer_on_taskeen_sample():
     assert -1.0 <= report.sentiment.score <= 1.0
     assert len(report.sentiment.tone_summary) > 0
 
-    # 10. Metadata
+    # 10. Speaker-wise Transcript
+    assert len(report.speaker_wise_transcript) == 4
+    seg0 = report.speaker_wise_transcript[0]
+    assert seg0.speaker_id == "SPEAKER_00"
+    assert seg0.timestamp_formatted == "02:15"
+    assert "launch the website" in seg0.text
+
+    # 11. Dashboard Metrics
+    assert report.dashboard_metrics is not None
+    assert report.dashboard_metrics.duration_formatted == "30m 45s"
+    assert report.dashboard_metrics.action_items_count == len(report.action_items)
+    assert report.dashboard_metrics.decisions_count == len(report.decisions)
+
+    # 12. Metadata
     assert report.metadata.total_duration_seconds == 1845.0
     assert report.metadata.total_segments == 4
     assert report.metadata.model_name == "mock-intelligence-v1"
     assert report.metadata.processing_time_seconds >= 0
+
+
+def test_speaker_name_overrides():
+    with open(FIXTURES_DIR / "sample_taskeen_transcript.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    data["speaker_name_overrides"] = {
+        "SPEAKER_00": "Custom Leader Name",
+        "SPEAKER_01": "Custom Engineer Name"
+    }
+
+    service = MeetingIntelligenceService(provider=MockLLMProvider())
+    report = service.analyze_meeting_sync(data)
+
+    p0 = next(p for p in report.participants if p.speaker_id == "SPEAKER_00")
+    assert p0.detected_name == "Custom Leader Name"
+    assert report.speaker_wise_transcript[0].speaker_name == "Custom Leader Name"
 
 
 @pytest.mark.asyncio
@@ -98,4 +128,23 @@ async def test_service_async_execution_and_database_mapping():
     assert "action_items" in db_records
     assert "decisions" in db_records
     assert "participants" in db_records
+    assert "speaker_wise_transcript" in db_records
+    assert "dashboard_metrics" in db_records
     assert len(db_records["action_items"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_service_ask_question():
+    with open(FIXTURES_DIR / "sample_taskeen_transcript.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    service = MeetingIntelligenceService(provider=MockLLMProvider())
+    qa_ans = await service.ask_question(
+        segments=data.get("segments", []),
+        question="What did we decide about the launch date?"
+    )
+
+    assert qa_ans.question == "What did we decide about the launch date?"
+    assert len(qa_ans.answer) > 0
+    assert len(qa_ans.relevant_timestamps) > 0
+    assert qa_ans.relevant_timestamps[0].formatted == "02:29"

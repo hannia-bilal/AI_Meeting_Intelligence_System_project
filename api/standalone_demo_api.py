@@ -19,7 +19,13 @@ from dotenv import load_dotenv
 # Ensure local src is in sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.ai_intelligence.schemas import MeetingAnalysisRequest, MeetingIntelligenceReport
+from src.ai_intelligence.schemas import (
+    MeetingAnalysisRequest,
+    MeetingIntelligenceReport,
+    MeetingQARequest,
+    MeetingQAAnswer,
+    TranscriptSegment
+)
 from src.ai_intelligence.service import MeetingIntelligenceService
 
 load_dotenv()
@@ -107,6 +113,48 @@ async def generate_db_payload_endpoint(
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Database payload generation failed: {str(exc)}")
+
+
+@app.post(
+    "/api/v1/intelligence/ask",
+    response_model=MeetingQAAnswer,
+    tags=["Meeting Q&A"],
+    summary="Ask Question About Meeting (Ask AI with Timestamps)"
+)
+async def ask_meeting_endpoint(
+    request: MeetingQARequest,
+    provider: Optional[str] = Query(None, description="Optional override: 'mock', 'gemini', 'openai', or 'groq'")
+):
+    """
+    Contextual Q&A endpoint ('Ask AI') fulfilling PDF page 4 & 5 requirement:
+    Users ask questions about the meeting and receive answers with clickable timestamp references.
+    """
+    try:
+        active_service = service
+        if provider:
+            active_service = MeetingIntelligenceService(provider_type=provider)
+
+        # Default sample transcript if none passed
+        segments = []
+        if request.transcript_text:
+            segments = [TranscriptSegment(speaker="SPEAKER", start=0.0, end=10.0, text=request.transcript_text)]
+        else:
+            # Load default fixture for quick testing if empty
+            sample_path = Path(__file__).parent.parent / "tests" / "fixtures" / "sample_taskeen_transcript.json"
+            if sample_path.exists():
+                import json
+                with open(sample_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    segments = [TranscriptSegment(**s) for s in data.get("segments", [])]
+
+        answer = await active_service.ask_question(
+            segments=segments,
+            question=request.question,
+            meeting_title=request.meeting_title
+        )
+        return answer
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Q&A failed: {str(exc)}")
 
 
 if __name__ == "__main__":

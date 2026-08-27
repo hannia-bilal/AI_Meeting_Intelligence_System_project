@@ -46,6 +46,28 @@ def format_seconds_to_timestamp(seconds: float) -> str:
     return f"{minutes:02d}:{secs:02d}"
 
 
+def format_duration_human(seconds: float) -> str:
+    """
+    Format seconds into a human-friendly duration string for dashboard cards.
+    Examples:
+        75.0 -> "1m 15s"
+        1845.0 -> "30m 45s"
+        3665.0 -> "1h 01m 05s"
+    """
+    if seconds is None or seconds < 0:
+        return "0s"
+    total_seconds = int(round(seconds))
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    secs = total_seconds % 60
+
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m {secs:02d}s" if secs > 0 else f"{hours}h {minutes:02d}m"
+    if minutes > 0:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
 def parse_reference_date(ref_date_input: Optional[str] = None) -> date:
     """
     Parses an ISO date string or falls back to today's date.
@@ -67,11 +89,12 @@ def normalize_deadline(raw_text: Optional[str], reference_date_str: Optional[str
     """
     Normalize natural language deadline expressions into standard 'YYYY-MM-DD' strings.
     Handles phrases mentioned in project requirements:
-    - 'tomorrow'
-    - 'today'
-    - 'Friday', 'next Monday', 'this Wednesday'
+    - 'tomorrow', 'tomorrow morning', 'by tomorrow at 5pm'
+    - 'today', 'tonight', 'tonight at 11 PM'
+    - 'Friday', 'next Monday', 'next Monday morning', 'this Wednesday'
     - 'September 10', '10 September'
     - 'end of this month', 'end of next month'
+    - 'end of this week', 'end of the week'
     - 'in 2 days', 'in 3 weeks'
     """
     if not raw_text or not isinstance(raw_text, str):
@@ -80,18 +103,22 @@ def normalize_deadline(raw_text: Optional[str], reference_date_str: Optional[str
     cleaned = raw_text.strip().lower()
     cleaned = re.sub(r"^(by|on|at|before|due)\s+", "", cleaned).strip()
 
+    # Strip trailing time designations (e.g. "at 11 pm", "at 5:00", "morning", "evening")
+    cleaned_date = re.sub(r"\s+(at|by)\s+\d{1,2}(:\d{2})?\s*(am|pm)?.*$", "", cleaned).strip()
+    cleaned_date = re.sub(r"\s+(morning|afternoon|evening|night|eod|cob|close of business)$", "", cleaned_date).strip()
+
     ref_date = parse_reference_date(reference_date_str)
 
     # 1. Direct Relative Keywords
-    if cleaned in ("today", "tonight", "end of day", "eod"):
+    if cleaned_date in ("today", "tonight", "end of day", "eod"):
         return ref_date.isoformat()
-    if cleaned in ("tomorrow", "tmrw"):
+    if cleaned_date in ("tomorrow", "tmrw"):
         return (ref_date + timedelta(days=1)).isoformat()
-    if cleaned in ("day after tomorrow",):
+    if cleaned_date in ("day after tomorrow",):
         return (ref_date + timedelta(days=2)).isoformat()
 
     # 2. "In X days/weeks/months"
-    in_pattern = re.match(r"in\s+(\d+|a|an|one|two|three|four|five)\s+(day|days|week|weeks|month|months)", cleaned)
+    in_pattern = re.match(r"in\s+(\d+|a|an|one|two|three|four|five)\s+(day|days|week|weeks|month|months)", cleaned_date)
     if in_pattern:
         num_word = in_pattern.group(1)
         unit = in_pattern.group(2)
@@ -106,39 +133,43 @@ def normalize_deadline(raw_text: Optional[str], reference_date_str: Optional[str
             return (ref_date + relativedelta(months=count)).isoformat()
 
     # 3. "End of this month" / "End of next month"
-    if "end of this month" in cleaned or "end of month" in cleaned:
+    if "end of this month" in cleaned_date or "end of month" in cleaned_date:
         last_day = calendar.monthrange(ref_date.year, ref_date.month)[1]
         return date(ref_date.year, ref_date.month, last_day).isoformat()
 
-    if "end of next month" in cleaned:
+    if "end of next month" in cleaned_date:
         next_month_date = ref_date + relativedelta(months=1)
         last_day = calendar.monthrange(next_month_date.year, next_month_date.month)[1]
         return date(next_month_date.year, next_month_date.month, last_day).isoformat()
 
+    # "End of this week" / "End of the week" (target coming Friday or Sunday)
+    if "end of this week" in cleaned_date or "end of the week" in cleaned_date or "end of week" in cleaned_date:
+        current_day = ref_date.weekday()
+        days_to_friday = (4 - current_day) if current_day <= 4 else (4 - current_day + 7)
+        return (ref_date + timedelta(days=days_to_friday)).isoformat()
+
     # 4. Weekdays (e.g., "Friday", "next Monday", "this Friday")
     for day_name, day_index in WEEKDAYS.items():
-        if day_name in cleaned:
-            is_next = "next" in cleaned
+        if day_name in cleaned_date:
+            is_next = "next" in cleaned_date
             current_day_index = ref_date.weekday()
 
             if day_index > current_day_index:
                 # Day hasn't occurred yet in the current calendar week
                 days_ahead = day_index - current_day_index
                 if is_next:
-                    # e.g., today is Tuesday, "next Friday" = next week's Friday
                     days_ahead += 7
             else:
                 # Day already occurred or is today; earliest next occurrence is in the coming week
                 days_ahead = (day_index - current_day_index) + 7
-                # In common parlance on Friday, "next Monday" refers to the upcoming Monday (3 days away)
 
             return (ref_date + timedelta(days=days_ahead)).isoformat()
 
     # 5. Explicit Calendar Dates (e.g. "September 10", "10 September", "2026-09-01", "Sept 10th")
     try:
-        parsed = date_parser.parse(cleaned, default=datetime(ref_date.year, 1, 1))
+        parsed = date_parser.parse(cleaned_date, default=datetime(ref_date.year, 1, 1))
         # If no year was in the string and parsed date is in the past, roll forward 1 year
-        if not re.search(r"\b(19|20)\d{2}\b", cleaned) and parsed.date() < ref_date:
+        if not re.search(r"\b(19|20)\d{2}\b", cleaned_date) and parsed.date() < ref_date:
             parsed = parsed.replace(year=ref_date.year + 1)
         return parsed.date().isoformat()
     except (ValueError, OverflowError):

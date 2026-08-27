@@ -22,11 +22,21 @@ from .schemas import (
     TimestampReference,
     SummaryType,
     TaskPriority,
-    TaskStatus
+    TaskStatus,
+    EnrichedTranscriptSegment,
+    DashboardMetrics,
+    MeetingQAAnswer,
+    TranscriptSegment
 )
-from .normalizers import normalize_deadline, format_seconds_to_timestamp
+from .normalizers import normalize_deadline, format_seconds_to_timestamp, format_duration_human
 from .chunker import calculate_speaker_metrics, format_transcript_for_prompt, chunk_transcript
-from .prompts import SYSTEM_PROMPT, ANALYSIS_JSON_SCHEMA, build_analysis_user_prompt
+from .prompts import (
+    SYSTEM_PROMPT,
+    ANALYSIS_JSON_SCHEMA,
+    build_analysis_user_prompt,
+    QA_SYSTEM_PROMPT,
+    build_qa_user_prompt
+)
 from .providers.base import BaseLLMProvider
 
 
@@ -142,7 +152,7 @@ class MeetingIntelligenceAnalyzer:
             json_schema=ANALYSIS_JSON_SCHEMA
         )
 
-        # 5. Enrich participants with detected names
+        # 5. Enrich participants with detected names and manual overrides
         name_map = {}
         speaker_mappings = _find_key(raw_result, "speaker_name_mappings", "SpeakerNameMapping") or []
         for mapping in speaker_mappings:
@@ -151,6 +161,10 @@ class MeetingIntelligenceAnalyzer:
                 name = _find_key(mapping, "detected_name", "name")
                 if spk_id and name:
                     name_map[spk_id] = name
+
+        # Manual overrides take highest priority if provided
+        if request.speaker_name_overrides:
+            name_map.update(request.speaker_name_overrides)
 
         for p in base_participants:
             if p.speaker_id in name_map:
@@ -302,6 +316,31 @@ class MeetingIntelligenceAnalyzer:
             summary_type_provided=request.summary_type
         )
 
+        # 14. Build Speaker-wise Transcript
+        speaker_wise_transcript: List[EnrichedTranscriptSegment] = []
+        for seg in request.segments:
+            disp_name = name_map.get(seg.speaker, seg.speaker)
+            speaker_wise_transcript.append(
+                EnrichedTranscriptSegment(
+                    speaker_id=seg.speaker,
+                    speaker_name=disp_name,
+                    start=seg.start,
+                    end=seg.end,
+                    timestamp_formatted=format_seconds_to_timestamp(seg.start),
+                    text=seg.text
+                )
+            )
+
+        # 15. Pre-calculate Dashboard Summary Metrics
+        dashboard_metrics = DashboardMetrics(
+            duration_formatted=format_duration_human(request.duration),
+            action_items_count=len(action_items),
+            decisions_count=len(decisions),
+            unresolved_issues_count=len(unresolved),
+            upcoming_deadlines_count=len(deadlines),
+            overall_sentiment_label=overall_cat.value.capitalize()
+        )
+
         elapsed = round(time.time() - start_time, 3)
 
         metadata = MeetingMetadata(
@@ -320,6 +359,7 @@ class MeetingIntelligenceAnalyzer:
             title=title,
             summary=summary,
             participants=base_participants,
+            speaker_wise_transcript=speaker_wise_transcript,
             key_points=key_points,
             decisions=decisions,
             action_items=action_items,
@@ -327,5 +367,44 @@ class MeetingIntelligenceAnalyzer:
             unresolved_issues=unresolved,
             follow_ups=follow_ups,
             sentiment=sentiment,
+            dashboard_metrics=dashboard_metrics,
             metadata=metadata
+        )
+
+    def answer_question(
+        self,
+        segments: List[TranscriptSegment],
+        question: str,
+        meeting_title: Optional[str] = None
+    ) -> MeetingQAAnswer:
+        """
+        Answers user questions using meeting transcript with timestamp references (Ask AI).
+        """
+        formatted_transcript = format_transcript_for_prompt(segments)
+        user_prompt = build_qa_user_prompt(
+            formatted_transcript=formatted_transcript,
+            question=question,
+            meeting_title=meeting_title
+        )
+
+        raw_result = self.provider.generate_json(
+            system_prompt=QA_SYSTEM_PROMPT,
+            user_prompt=user_prompt
+        )
+
+        raw_ts = _find_key(raw_result, "relevant_timestamps", "timestamps") or []
+        parsed_ts = []
+        for t in raw_ts:
+            p = _parse_timestamp(t)
+            if p:
+                parsed_ts.append(p)
+
+        answer_text = _find_key(raw_result, "answer", "response") or "No answer could be determined from the transcript."
+
+        return MeetingQAAnswer(
+            question=question,
+            answer=answer_text,
+            relevant_timestamps=parsed_ts,
+            referenced_speakers=_find_key(raw_result, "referenced_speakers", "speakers") or [],
+            evidence_quotes=_find_key(raw_result, "evidence_quotes", "quotes") or []
         )
