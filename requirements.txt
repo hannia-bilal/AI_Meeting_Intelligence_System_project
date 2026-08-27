@@ -1,0 +1,17 @@
+# Core dependencies for AI Meeting Intelligence System
+# Muhammad Awais - AI Meeting Intelligence Module
+
+pydantic>=2.7.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+python-dateutil>=2.9.0
+python-dotenv>=1.0.1
+requests>=2.31.0
+
+# Optional LLM providers
+google-generativeai>=0.5.0
+openai>=1.20.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

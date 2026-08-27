@@ -1,0 +1,57 @@
+{
+  "duration": 3600.0,
+  "language": "en",
+  "meeting_title": "Quarterly Product Strategy & Engineering Alignment",
+  "meeting_date": "2026-08-28T09:00:00Z",
+  "summary_type": "detailed",
+  "segments": [
+    {
+      "speaker": "SPEAKER_00",
+      "start": 10.0,
+      "end": 25.5,
+      "text": "Good morning everyone, this is Hannia. Today we need to align on the AI Meeting Intelligence system release, database schemas, and marketing budget."
+    },
+    {
+      "speaker": "SPEAKER_01",
+      "start": 26.0,
+      "end": 45.0,
+      "text": "Thanks Hannia, Ali speaking. From the frontend side, the React Next.js dashboard is progressing smoothly. The upload page and meeting details screens are done."
+    },
+    {
+      "speaker": "SPEAKER_02",
+      "start": 46.0,
+      "end": 70.0,
+      "text": "Hassan here. The PostgreSQL schema with pgvector is ready. We have tables for users, meetings, participants, transcripts, and action items."
+    },
+    {
+      "speaker": "SPEAKER_03",
+      "start": 71.0,
+      "end": 95.0,
+      "text": "Faez here. I will integrate the FastAPI backend endpoints with Muhammad Awais's AI intelligence module and Taskeen's speech processing pipeline by tomorrow."
+    },
+    {
+      "speaker": "SPEAKER_00",
+      "start": 96.0,
+      "end": 120.0,
+      "text": "Regarding the marketing budget, we decided to allocate fifty thousand dollars for the Q3 campaign. We should wrap up this phase by end of this month."
+    },
+    {
+      "speaker": "SPEAKER_04",
+      "start": 121.0,
+      "end": 150.0,
+      "text": "Absar speaking. For Meeting Q&A, I am testing the vector search embeddings. We must resolve the embedding model selection before September 10."
+    },
+    {
+      "speaker": "SPEAKER_01",
+      "start": 151.0,
+      "end": 175.0,
+      "text": "I will handle the responsive UI polish for mobile devices by Friday."
+    },
+    {
+      "speaker": "SPEAKER_00",
+      "start": 176.0,
+      "end": 200.0,
+      "text": "Awesome. The open blocker is whether we provide self-hosted whisper or use a cloud API. Let us table that for next Monday."
+    }
+  ]
+}

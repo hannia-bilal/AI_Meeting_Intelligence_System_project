@@ -169,6 +169,116 @@ The repository is currently being organized around the frontend, FastAPI backend
 
 Never commit credentials, uploaded recordings, generated transcripts, or other sensitive meeting data.
 
+## AI Meeting Intelligence Module (Muhammad Awais)
+
+This module implements the complete **AI Meeting Intelligence Engine** and **AI Prompt Response Architecture** built by **Muhammad Awais**.
+
+It takes raw, diarized speech transcripts (from Taskeen Mustafa) and extracts:
+- **Executive & Detailed Summaries** (supporting short, detailed, or dual summaries)
+- **Speaker Mapping & Contribution Metrics** (speaking time, contribution percentage, turn counts, mapping `SPEAKER_XX` to real names)
+- **Key Discussion Points** with timestamp references (`MM:SS`)
+- **Decisions Made** with rationale and timestamps
+- **Action Items & Task Owners** with natural deadline detection and ISO-8601 normalization (e.g., "Friday" -> `2026-09-04`, "next Monday" -> `2026-08-31`, "September 10" -> `2026-09-10`, "end of this month" -> `2026-08-31`)
+- **Deadlines & Milestones**
+- **Unresolved Issues & Blockers** with urgency ratings
+- **Follow-up Items** with recommended owners and timeframes
+- **Overall Meeting Sentiment & Dynamics** (sentiment score `-1.0` to `+1.0`, category, and qualitative tone summary)
+
+### Module Architecture
+
+```text
+src/ai_intelligence/
+├── __init__.py           # Package exports
+├── schemas.py            # Strict Pydantic models (Input & Output contracts)
+├── normalizers.py        # Date/deadline normalizer & timestamp utilities
+├── chunker.py            # Long meeting transcript chunking & speaker metrics
+├── prompts.py            # Structured system & user prompts + JSON schema
+├── analyzer.py           # Core MeetingIntelligenceAnalyzer orchestrator
+├── service.py            # High-level facade for FastAPI & Database integration
+└── providers/            # Multi-LLM provider abstraction
+    ├── base.py           # BaseLLMProvider interface
+    ├── mock_provider.py  # High-fidelity offline mock for testing without API keys
+    ├── gemini_provider.py# Google Gemini API integration (gemini-1.5-flash)
+    └── openai_provider.py# OpenAI API integration (gpt-4o-mini)
+```
+
+### Team Integration Guide
+
+#### 1. For Faez Ahmad (Backend & Integration)
+Import `MeetingIntelligenceService` in your FastAPI router:
+```python
+from src.ai_intelligence.service import MeetingIntelligenceService
+
+service = MeetingIntelligenceService(provider_type="gemini") # or "openai" or "mock"
+
+@router.post("/api/v1/meetings/{meeting_id}/analyze")
+async def analyze_meeting(meeting_id: str, transcript_data: dict):
+    # Non-blocking async execution
+    report = await service.analyze_meeting(transcript_data)
+    return report
+```
+
+#### 2. For Taskeen Mustafa (Speech Processing)
+Output your Whisper/Diarization results in this JSON contract (approved in WhatsApp):
+```json
+{
+  "duration": 1845.0,
+  "language": "en",
+  "meeting_title": "Optional Title",
+  "meeting_date": "2026-08-28T10:00:00Z",
+  "segments": [
+    {
+      "speaker": "SPEAKER_00",
+      "start": 135.2,
+      "end": 141.8,
+      "text": "We should launch the website next week."
+    }
+  ]
+}
+```
+
+#### 3. For Hassan Raza (Database & Meeting Management)
+Use `service.to_database_records(report, meeting_id)` to get pre-mapped dictionaries ready for PostgreSQL insertion:
+```python
+db_payload = MeetingIntelligenceService.to_database_records(report, meeting_id=meeting.id)
+# Contains:
+# - db_payload["meeting_updates"] -> title, summaries, sentiment
+# - db_payload["action_items"] -> tasks, assignees, normalized deadlines, priorities
+# - db_payload["decisions"] -> decisions, rationale, timestamps
+# - db_payload["participants"] -> speaker metrics, detected names
+```
+
+#### 4. For Absar Akbar (Meeting Q&A + Vector Search)
+Use the structured `report.key_points`, `report.decisions`, and `report.action_items` along with `TimestampReference` (`seconds`, `formatted`) for indexing into `pgvector` chunks.
+
+#### 5. For Ali Zafar (Frontend & Dashboard)
+The API returns a fully typed JSON object matching the `MeetingDetailsPage` requirements in the specification:
+- Overview (Summary, Participants, Duration, Date)
+- Transcript (Speaker labels, Timestamps, Searchable)
+- AI Insights (Key points, Decisions, Action Items, Deadlines, Unresolved Issues)
+
+---
+
+### Running the Module
+
+#### 1. Run Automated Test Suite
+```bash
+python -m pytest tests/ -v
+```
+
+#### 2. Run via CLI
+```bash
+python cli.py --input tests/fixtures/sample_taskeen_transcript.json --provider mock --output report.json
+```
+
+#### 3. Run Standalone FastAPI Microservice & Swagger UI
+```bash
+python api/standalone_demo_api.py
+```
+Open [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
+
+---
+
 ## Deliverables
 
 - Complete source code
@@ -183,4 +293,4 @@ Never commit credentials, uploaded recordings, generated transcripts, or other s
 ## Project Timeline
 
 - Duration: 2 weeks
-- Submission deadline: 1 week, 4:00 PM
+- Submission deadline: 1 week, 4:00 PM
