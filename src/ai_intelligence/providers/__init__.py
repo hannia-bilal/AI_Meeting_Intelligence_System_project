@@ -37,6 +37,14 @@ def get_llm_provider(
         model = model_name or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         return OpenAILLMProvider(api_key=key, model_name=model)
 
+    elif prov == "groq":
+        key = api_key or os.getenv("GROQ_API_KEY")
+        if not key:
+            return MockLLMProvider(model_name="mock-fallback-no-groq-key")
+        from .groq_provider import GroqLLMProvider
+        model = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+        return GroqLLMProvider(api_key=key, model_name=model)
+
     return MockLLMProvider(model_name=model_name or "mock-intelligence-v1")
 
 

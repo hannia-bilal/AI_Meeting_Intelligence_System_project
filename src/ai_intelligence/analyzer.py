@@ -62,6 +62,46 @@ def _parse_timestamp(ts_val: Any) -> Optional[TimestampReference]:
     return None
 
 
+def _find_key(d: Any, *candidates) -> Any:
+    """
+    Finds a key in dictionary checking multiple case variations
+    (e.g., 'executive_summary', 'ExecutiveSummary', 'executiveSummary').
+    """
+    if not isinstance(d, dict):
+        return None
+    for k in candidates:
+        if k in d:
+            return d[k]
+    lower_map = {k.lower().replace("_", ""): v for k, v in d.items()}
+    for k in candidates:
+        clean = k.lower().replace("_", "")
+        if clean in lower_map:
+            return lower_map[clean]
+    return None
+
+
+def _stringify_summary(val: Any, default: str = "") -> str:
+    """
+    Converts summary values (which may be strings or list of theme objects)
+    into formatted markdown text.
+    """
+    if not val:
+        return default
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        items = []
+        for item in val:
+            if isinstance(item, dict):
+                theme = _find_key(item, "theme", "topic", "title") or "Discussion Point"
+                details = _find_key(item, "details", "summary", "text", "description") or str(item)
+                items.append(f"### {theme}\n{details}")
+            else:
+                items.append(str(item))
+        return "\n\n".join(items)
+    return str(val)
+
+
 class MeetingIntelligenceAnalyzer:
     """
     Orchestrates LLM analysis, prompt injection, date normalization,
@@ -104,11 +144,13 @@ class MeetingIntelligenceAnalyzer:
 
         # 5. Enrich participants with detected names
         name_map = {}
-        for mapping in raw_result.get("speaker_name_mappings", []):
-            spk_id = mapping.get("speaker_id")
-            name = mapping.get("detected_name")
-            if spk_id and name:
-                name_map[spk_id] = name
+        speaker_mappings = _find_key(raw_result, "speaker_name_mappings", "SpeakerNameMapping") or []
+        for mapping in speaker_mappings:
+            if isinstance(mapping, dict):
+                spk_id = _find_key(mapping, "speaker_id", "speaker")
+                name = _find_key(mapping, "detected_name", "name")
+                if spk_id and name:
+                    name_map[spk_id] = name
 
         for p in base_participants:
             if p.speaker_id in name_map:
@@ -116,13 +158,16 @@ class MeetingIntelligenceAnalyzer:
 
         # 6. Parse and normalize Action Items & Deadlines
         action_items: List[ActionItem] = []
-        for item in raw_result.get("action_items", []):
-            raw_deadline = item.get("deadline_raw")
+        raw_actions = _find_key(raw_result, "action_items", "ActionItemsTaskOwners", "action_items_task_owners") or []
+        for item in raw_actions:
+            if not isinstance(item, dict):
+                continue
+            raw_deadline = _find_key(item, "deadline_raw", "deadline", "deadline_raw_text")
             norm_deadline = normalize_deadline(raw_deadline, request.meeting_date)
-            ts = _parse_timestamp(item.get("timestamp"))
+            ts = _parse_timestamp(_find_key(item, "timestamp", "time"))
 
             # Determine priority enum
-            priority_str = (item.get("priority") or "medium").lower()
+            priority_str = str(_find_key(item, "priority") or "medium").lower()
             priority = TaskPriority.MEDIUM
             if "high" in priority_str:
                 priority = TaskPriority.HIGH
@@ -131,9 +176,9 @@ class MeetingIntelligenceAnalyzer:
 
             action_items.append(
                 ActionItem(
-                    task=item.get("task", "Untitled Task"),
-                    assigned_to=item.get("assigned_to", "Unassigned"),
-                    assigned_speaker_id=item.get("assigned_speaker_id"),
+                    task=_find_key(item, "task", "action", "description") or "Untitled Task",
+                    assigned_to=_find_key(item, "assigned_to", "owner", "assignee") or "Unassigned",
+                    assigned_speaker_id=_find_key(item, "assigned_speaker_id", "speaker_id"),
                     deadline_raw=raw_deadline,
                     deadline_normalized=norm_deadline,
                     priority=priority,
@@ -144,70 +189,85 @@ class MeetingIntelligenceAnalyzer:
 
         # 7. Parse Deadlines
         deadlines: List[DeadlineItem] = []
-        for d in raw_result.get("deadlines", []):
-            raw_text = d.get("raw_text", "")
+        raw_deadlines = _find_key(raw_result, "deadlines", "DeadlinesMilestones", "deadlines_milestones") or []
+        for d in raw_deadlines:
+            if not isinstance(d, dict):
+                continue
+            raw_text = _find_key(d, "raw_text", "deadline", "date") or ""
             norm_date = normalize_deadline(raw_text, request.meeting_date)
             deadlines.append(
                 DeadlineItem(
-                    item=d.get("item", "Milestone"),
+                    item=_find_key(d, "item", "task", "milestone") or "Milestone",
                     raw_text=raw_text,
                     normalized_date=norm_date,
-                    context=d.get("context")
+                    context=_find_key(d, "context", "notes")
                 )
             )
 
         # 8. Parse Key Points
         key_points: List[KeyDiscussionPoint] = []
-        for kp in raw_result.get("key_points", []):
+        raw_points = _find_key(raw_result, "key_points", "KeyDiscussionPoints", "key_discussion_points") or []
+        for kp in raw_points:
+            if not isinstance(kp, dict):
+                continue
             key_points.append(
                 KeyDiscussionPoint(
-                    topic=kp.get("topic", "Discussion Point"),
-                    summary=kp.get("summary", ""),
-                    timestamp=_parse_timestamp(kp.get("timestamp")),
-                    speaker=kp.get("speaker")
+                    topic=_find_key(kp, "topic", "title", "point") or "Discussion Point",
+                    summary=_find_key(kp, "summary", "description", "details") or "",
+                    timestamp=_parse_timestamp(_find_key(kp, "timestamp", "time")),
+                    speaker=_find_key(kp, "speaker", "speaker_id")
                 )
             )
 
         # 9. Parse Decisions
         decisions: List[DecisionItem] = []
-        for dec in raw_result.get("decisions", []):
+        raw_decisions = _find_key(raw_result, "decisions", "DecisionsMade", "decisions_made") or []
+        for dec in raw_decisions:
+            if not isinstance(dec, dict):
+                continue
             decisions.append(
                 DecisionItem(
-                    decision=dec.get("decision", ""),
-                    rationale=dec.get("rationale"),
-                    timestamp=_parse_timestamp(dec.get("timestamp")),
-                    agreed_by=dec.get("agreed_by", [])
+                    decision=_find_key(dec, "decision", "agreement", "title") or "",
+                    rationale=_find_key(dec, "rationale", "reason", "context"),
+                    timestamp=_parse_timestamp(_find_key(dec, "timestamp", "time")),
+                    agreed_by=_find_key(dec, "agreed_by", "participants") or []
                 )
             )
 
         # 10. Parse Unresolved Issues
         unresolved: List[UnresolvedIssue] = []
-        for u in raw_result.get("unresolved_issues", []):
-            urgency_str = (u.get("urgency") or "medium").lower()
+        raw_unresolved = _find_key(raw_result, "unresolved_issues", "UnresolvedIssuesBlockers", "unresolved_issues_blockers") or []
+        for u in raw_unresolved:
+            if not isinstance(u, dict):
+                continue
+            urgency_str = str(_find_key(u, "urgency", "priority") or "medium").lower()
             urgency = TaskPriority.HIGH if "high" in urgency_str else (TaskPriority.LOW if "low" in urgency_str else TaskPriority.MEDIUM)
             unresolved.append(
                 UnresolvedIssue(
-                    issue=u.get("issue", ""),
-                    context=u.get("context"),
+                    issue=_find_key(u, "issue", "blocker", "title") or "",
+                    context=_find_key(u, "context", "description"),
                     urgency=urgency,
-                    timestamp=_parse_timestamp(u.get("timestamp"))
+                    timestamp=_parse_timestamp(_find_key(u, "timestamp", "time"))
                 )
             )
 
         # 11. Parse Follow-up Items
         follow_ups: List[FollowUpItem] = []
-        for f in raw_result.get("follow_ups", []):
+        raw_followups = _find_key(raw_result, "follow_ups", "FollowUpItems", "follow_up_items") or []
+        for f in raw_followups:
+            if not isinstance(f, dict):
+                continue
             follow_ups.append(
                 FollowUpItem(
-                    item=f.get("item", ""),
-                    suggested_owner=f.get("suggested_owner"),
-                    suggested_timeframe=f.get("suggested_timeframe")
+                    item=_find_key(f, "item", "action", "title") or "",
+                    suggested_owner=_find_key(f, "suggested_owner", "owner"),
+                    suggested_timeframe=_find_key(f, "suggested_timeframe", "timeframe", "when")
                 )
             )
 
         # 12. Parse Sentiment
-        raw_sentiment = raw_result.get("sentiment", {})
-        overall_str = (raw_sentiment.get("overall_sentiment") or "neutral").lower()
+        raw_sentiment = _find_key(raw_result, "sentiment", "SentimentTeamDynamics", "sentiment_team_dynamics") or {}
+        overall_str = str(_find_key(raw_sentiment, "overall_sentiment", "overall", "sentiment") or "neutral").lower()
         if "pos" in overall_str:
             overall_cat = SentimentCategory.POSITIVE
         elif "neg" in overall_str:
@@ -219,17 +279,26 @@ class MeetingIntelligenceAnalyzer:
 
         sentiment = SentimentAnalysis(
             overall_sentiment=overall_cat,
-            score=float(raw_sentiment.get("score", 0.0)),
-            positive_percentage=float(raw_sentiment.get("positive_percentage", 0.0)),
-            neutral_percentage=float(raw_sentiment.get("neutral_percentage", 100.0)),
-            negative_percentage=float(raw_sentiment.get("negative_percentage", 0.0)),
-            tone_summary=raw_sentiment.get("tone_summary", "")
+            score=float(_find_key(raw_sentiment, "score") or 0.0),
+            positive_percentage=float(_find_key(raw_sentiment, "positive_percentage") or 0.0),
+            neutral_percentage=float(_find_key(raw_sentiment, "neutral_percentage") or 100.0),
+            negative_percentage=float(_find_key(raw_sentiment, "negative_percentage") or 0.0),
+            tone_summary=str(_find_key(raw_sentiment, "tone_summary", "tone") or "")
         )
 
         # 13. Summaries
+        exec_summary = _stringify_summary(
+            _find_key(raw_result, "executive_summary", "ExecutiveSummary", "summary"),
+            default="No executive summary generated."
+        )
+        det_summary = _stringify_summary(
+            _find_key(raw_result, "detailed_summary", "DetailedSummary"),
+            default="No detailed summary generated."
+        )
+
         summary = MeetingSummary(
-            executive_summary=raw_result.get("executive_summary", "No executive summary generated."),
-            detailed_summary=raw_result.get("detailed_summary", "No detailed summary generated."),
+            executive_summary=exec_summary,
+            detailed_summary=det_summary,
             summary_type_provided=request.summary_type
         )
 

@@ -32,7 +32,7 @@ def main():
     parser.add_argument(
         "--provider", "-p",
         default="mock",
-        choices=["mock", "gemini", "openai"],
+        choices=["mock", "gemini", "openai", "groq"],
         help="LLM provider to use (default: mock)"
     )
     parser.add_argument(

@@ -87,15 +87,19 @@ async def analyze_meeting_endpoint(
 )
 async def generate_db_payload_endpoint(
     request: MeetingAnalysisRequest,
-    meeting_id: Optional[str] = Query(None, description="Associated database meeting UUID/ID")
+    meeting_id: Optional[str] = Query(None, description="Associated database meeting UUID/ID"),
+    provider: Optional[str] = Query(None, description="Optional override: 'mock', 'gemini', 'openai', or 'groq'")
 ):
     """
     Convenience endpoint for Hassan Raza (Database) to receive data
     pre-structured for PostgreSQL relational tables (meetings, action_items, decisions, etc.).
     """
     try:
-        report = await service.analyze_meeting(request)
-        db_records = service.to_database_records(report, meeting_id=meeting_id)
+        active_service = service
+        if provider:
+            active_service = MeetingIntelligenceService(provider_type=provider)
+        report = await active_service.analyze_meeting(request)
+        db_records = active_service.to_database_records(report, meeting_id=meeting_id)
         return {
             "status": "success",
             "report": report,

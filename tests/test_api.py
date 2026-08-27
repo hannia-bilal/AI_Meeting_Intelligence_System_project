@@ -25,7 +25,7 @@ def test_api_analyze_endpoint():
     with open(FIXTURES_DIR / "sample_taskeen_transcript.json", "r", encoding="utf-8") as f:
         payload = json.load(f)
 
-    res = client.post("/api/v1/intelligence/analyze", json=payload)
+    res = client.post("/api/v1/intelligence/analyze?provider=mock", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert "title" in data
@@ -40,7 +40,7 @@ def test_api_db_payload_endpoint():
     with open(FIXTURES_DIR / "sample_taskeen_transcript.json", "r", encoding="utf-8") as f:
         payload = json.load(f)
 
-    res = client.post("/api/v1/intelligence/db-payload?meeting_id=meet_abc", json=payload)
+    res = client.post("/api/v1/intelligence/db-payload?meeting_id=meet_abc&provider=mock", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "success"
