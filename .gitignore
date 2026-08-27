@@ -62,3 +62,7 @@ venv.bak/
 .vscode/
 .idea/
 *.swp
+
+# Local reference documents
+*.docx
+*.pdf
