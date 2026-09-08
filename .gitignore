@@ -66,3 +66,26 @@ venv.bak/
 # Local reference documents
 *.docx
 *.pdf
+
+
+# Python virtual environment
+src/speech_processing/.venv/
+src/speech_processing/.env
+
+# Speech processing temporary/generated files
+src/speech_processing/temp/
+src/speech_processing/uploads/
+src/speech_processing/outputs/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment variables
+.env
+
+# Pytest
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
