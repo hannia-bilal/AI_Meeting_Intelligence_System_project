@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+pgvector>=0.2.5
+sentence-transformers>=2.6
+anthropic>=0.34
+python-dotenv>=1.0
+pydantic>=2.6
+pytest>=8.0
