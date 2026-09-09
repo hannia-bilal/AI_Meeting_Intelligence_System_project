@@ -1,0 +1,51 @@
+{
+  "duration": 2400.0,
+  "language": "en",
+  "meeting_title": "Emergency Budget & Cloud Migration Debrief",
+  "meeting_date": "2026-08-28T14:00:00Z",
+  "summary_type": "both",
+  "segments": [
+    {
+      "speaker": "SPEAKER_00",
+      "start": 12.0,
+      "end": 28.5,
+      "text": "Alright team, Sarah here. We have a serious problem with the AWS bill—it jumped forty percent this month because of unoptimized database queries."
+    },
+    {
+      "speaker": "SPEAKER_01",
+      "start": 29.0,
+      "end": 44.0,
+      "text": "David here. I looked into the logs. The Redis cache cluster was never enabled in production, so everything is hitting the main Postgres cluster directly."
+    },
+    {
+      "speaker": "SPEAKER_02",
+      "start": 45.0,
+      "end": 62.0,
+      "text": "This is Usman. If we don't fix this by tomorrow evening, we are going to blow through our cloud credits. Can we agree to migrate the cache layer tonight?"
+    },
+    {
+      "speaker": "SPEAKER_00",
+      "start": 63.0,
+      "end": 80.0,
+      "text": "Yes, we decide to enable Redis caching immediately tonight at 11 PM during low-traffic window. David, you will lead that deployment."
+    },
+    {
+      "speaker": "SPEAKER_01",
+      "start": 81.0,
+      "end": 98.0,
+      "text": "Understood. I will take care of the cache migration tonight and monitor metrics. What about the hiring freeze?"
+    },
+    {
+      "speaker": "SPEAKER_00",
+      "start": 99.0,
+      "end": 125.0,
+      "text": "That is still unresolved. Finance hasn't approved the senior DevOps role. Let's table hiring until our next monthly review on September 15. Usman, please audit all idle EC2 instances by next Monday."
+    },
+    {
+      "speaker": "SPEAKER_02",
+      "start": 126.0,
+      "end": 139.0,
+      "text": "Got it Sarah, I will deliver the idle EC2 instances report by next Monday morning."
+    }
+  ]
+}

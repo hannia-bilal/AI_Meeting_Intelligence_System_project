@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Neutrals — Warm Walnut & Muted Sand */
+  --paper: 234 228 220;         /* #EAE4DC — App canvas background */
+  --sidebar: 221 212 200;       /* #DDD4C8 — Sidebar & navigation */
+  --surface: 245 240 235;       /* #F5F0EB — Cards & surfaces */
+  --surface-raised: 245 240 235;
+  --ink: 45 36 30;              /* #2D241E — Primary text */
+  --ink-soft: 111 99 88;        /* #6F6358 — Secondary / timestamps */
+  --ink-faint: 150 137 122;     /* interpolated between soft and line */
+  --line: 197 185 170;          /* #C5B9AA — Borders & dividers */
+
+  /* Primary brand — Toasted Walnut */
+  --walnut-50: 243 233 221;     /* light tan tint */
+  --walnut-100: 232 214 191;
+  --walnut-400: 154 92 39;
+  --walnut-500: 120 53 15;      /* #78350F — CTAs & buttons */
+  --walnut-600: 95 42 12;       /* darker hover */
+  --walnut-700: 74 33 9;
+
+  /* AI / sparkle accent — Warm Caramel */
+  --caramel-50: 250 234 214;
+  --caramel-100: 244 214 176;
+  --caramel-500: 180 83 9;      /* #B45309 */
+  --caramel-600: 146 66 6;
+
+  /* Action items / active — Raw Tobacco */
+  --tobacco-50: 240 227 210;
+  --tobacco-100: 226 204 176;
+  --tobacco-500: 133 77 14;     /* #854D0E */
+  --tobacco-600: 105 61 11;
+
+  /* Decisions / done — Olive Cedar */
+  --olive-50: 233 238 214;
+  --olive-100: 213 224 176;
+  --olive-500: 77 124 15;       /* #4D7C0F */
+  --olive-600: 61 99 12;
+
+  /* Warnings / follow-ups — Burnt Ochre */
+  --ochre-50: 247 233 202;
+  --ochre-100: 238 214 158;
+  --ochre-500: 161 98 7;        /* #A16207 */
+  --ochre-600: 128 78 6;
+
+  /* Urgent deadlines — Oxblood */
+  --oxblood-50: 248 222 227;
+  --oxblood-100: 239 189 199;
+  --oxblood-500: 159 18 57;     /* #9F1239 */
+  --oxblood-600: 127 14 46;
+}
+
+.dark {
+  /* Deep espresso, not slate/black — stays in the same warm family */
+  --paper: 26 20 16;            /* deep espresso canvas */
+  --sidebar: 34 26 20;
+  --surface: 40 31 24;
+  --surface-raised: 49 38 30;
+  --ink: 237 230 220;           /* warm off-white */
+  --ink-soft: 181 169 154;
+  --ink-faint: 130 117 102;
+  --line: 63 51 41;
+
+  --walnut-50: 58 41 24;
+  --walnut-100: 79 55 30;
+  --walnut-400: 199 141 90;
+  --walnut-500: 208 139 76;     /* brightened for contrast on dark */
+  --walnut-600: 226 172 121;
+  --walnut-700: 238 197 158;
+
+  --caramel-50: 61 39 16;
+  --caramel-100: 87 55 20;
+  --caramel-500: 232 165 77;
+  --caramel-600: 240 190 128;
+
+  --tobacco-50: 54 39 18;
+  --tobacco-100: 78 55 24;
+  --tobacco-500: 200 138 74;
+  --tobacco-600: 222 174 128;
+
+  --olive-50: 40 46 20;
+  --olive-100: 58 66 26;
+  --olive-500: 154 194 90;
+  --olive-600: 189 219 141;
+
+  --ochre-50: 56 42 14;
+  --ochre-100: 80 60 18;
+  --ochre-500: 224 168 61;
+  --ochre-600: 240 197 116;
+
+  --oxblood-50: 56 22 30;
+  --oxblood-100: 84 30 42;
+  --oxblood-500: 224 92 122;
+  --oxblood-600: 238 138 161;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-paper text-ink font-body antialiased transition-colors duration-200;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display text-ink;
+  }
+  *:focus-visible {
+    outline: 2px solid rgb(var(--walnut-500));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
