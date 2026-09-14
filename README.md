@@ -1,107 +1,166 @@
-# Meeting Q&A + Vector Search
-**Owner:** Absar Akbar — AI Meeting Intelligence System (Project 4)
+# AI Meeting Intelligence System
 
-This module implements the **"Ask AI"** feature from the spec: a contextual
-chat that answers questions about one specific meeting, grounded in that
-meeting's transcript, with clickable timestamp references back to the
-recording.
+This project is an end-to-end AI-powered meeting intelligence platform that converts meeting audio/video into structured business insights, including summaries, key points, decisions, action items, deadlines, and contextual Q&A.
 
-## How it works (pipeline)
+The system is designed to combine:
+- speech processing
+- AI analysis
+- database storage
+- vector search
+- FastAPI backend
+- React frontend
 
+---
+
+## Project overview
+
+The application allows users to:
+- upload audio/video files
+- process meeting recordings
+- generate speaker-aware transcripts
+- analyze meeting content with AI
+- extract decisions, action items, and deadlines
+- ask questions about a meeting using contextual chat
+- view results through a web dashboard and meeting details pages
+
+---
+
+## Tech stack
+
+Frontend
+- React + Vite
+- Tailwind CSS
+
+Backend
+- Python
+- FastAPI
+- SQLAlchemy
+- PostgreSQL + pgvector
+
+AI / Processing
+- Whisper-style transcription pipeline
+- speaker diarization
+- AI meeting analysis
+- local vector embeddings + retrieval
+
+---
+
+## Folder structure
+
+```text
+AI_Meeting_Intelligence_System_project/
+├── api/
+├── Frontend/
+├── src/
+├── app/
+├── README.md
+├── requirements.txt
+├── main.py
+├── routes.py
+├── schemas.py
+├── database.py
+├── config.py
+├── models.py
+├── qa_service.py
+├── chunking.py
+├── embeddings.py
+├── vector_search.py
+├── llm_service.py
+├── test_qa_service.py
+├── tests/
+└── ai 19 august.pdf
 ```
-Taskeen's transcript segments (speaker + text + timestamps)
-        ↓
-chunking.py      → groups segments into coherent, timestamped chunks
-        ↓
-embeddings.py    → embeds each chunk (local model, no API key needed)
-        ↓
-vector_search.py → stores embeddings in Postgres/pgvector, does similarity search
-        ↓
-llm_service.py   → sends top-matching chunks + question to Claude, gets a
-                    grounded answer + which excerpts it used
-        ↓
-qa_service.py    → maps used excerpts back to real timestamps, logs the
-                    conversation, returns the final answer
-        ↓
-routes.py        → exposes it all as two REST endpoints
-```
 
-## Endpoints
+---
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/meetings/{meeting_id}/index` | Index a meeting's transcript for search (call once transcription finishes) |
-| POST | `/meetings/{meeting_id}/ask` | Ask a question about that meeting, get an answer + timestamps |
+## 1) Prerequisites
 
-Example `ask` request:
-```json
-{
-  "meeting_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "question": "What did we decide about the marketing budget?"
-}
-```
+Install:
+- Python 3.10+
+- Node.js 18+
+- npm
+- PostgreSQL (if you want the database-backed version)
 
-Example response:
-```json
-{
-  "answer": "The marketing budget was finalized at $5000.",
-  "timestamp_references": [
-    {"start_time_seconds": 1960, "end_time_seconds": 1970, "speaker": "Speaker 1", "snippet": "We decided the marketing budget is finalized..."}
-  ]
-}
-```
-The frontend (Ali) can use `start_time_seconds` to jump the video/audio
-player to that point — exactly what spec section 8 asks for.
+---
 
-## Setup
+## 2) Backend setup
 
-```bash
+Open PowerShell in the project root:
+
+```powershell
+cd "D:\Internship\Code Celix\AI_Intelligence_Meeting\AI_Meeting_Intelligence_System_project"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env   # fill in DATABASE_URL and ANTHROPIC_API_KEY
-uvicorn app.main:app --reload
-# Swagger docs: http://localhost:8000/docs
 ```
 
-Without an `ANTHROPIC_API_KEY` set, `/ask` still works — it falls back to
-returning the most relevant transcript excerpt directly, so you can demo
-retrieval even before wiring up the paid LLM call.
+Then start the backend:
 
-## Integration points with the rest of the team
-
-- **Hassan (Database):** `meeting_chunks` and `qa_conversations` (see
-  `schema.sql`) are new tables that reference his existing `meetings` and
-  `users` tables. Run his migrations first, then this module's.
-- **Taskeen (Speech Processing):** whatever her pipeline outputs for
-  speaker-wise transcript + timestamps should map directly into
-  `TranscriptSegmentIn` (see `app/schemas.py`) — call `/index` with that
-  right after transcription finishes.
-- **Awais (LLM Analysis):** his summary/decisions/action-items work is
-  separate from this module (that's meeting-level analysis run once); this
-  module is for interactive follow-up questions. No overlap, but both use
-  an LLM — worth agreeing on one shared Anthropic client/config if he's also
-  calling Claude, to avoid two separate configs.
-- **Faez (Backend & Integration):** mount `app/routes.py`'s router into the
-  main FastAPI app with `app.include_router(qa_router)`. Auth is stubbed —
-  wire in his auth dependency where `user_id` is used.
-- **Ali (Frontend):** the "Ask AI" chat box on the Meeting Details page
-  calls `/ask` and should render `timestamp_references` as clickable chips
-  that seek the player to `start_time_seconds`.
-
-## Testing
-
-```bash
-pytest tests/
+```powershell
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
-Covers chunking logic without requiring a live database or API key — good
-for a quick check before the demo.
 
-## Notes / things to double check before merging
+Backend docs:
+- http://localhost:8000/docs
 
-- `meeting_id` type here is `UUID` — confirm this matches Hassan's actual
-  primary key type in the `meetings` table (change in `models.py` if he's
-  using integer IDs instead).
-- The pgvector `ivfflat` index in `schema.sql` is commented out — only add
-  it once there's real chunk data to build the index on (per pgvector docs).
-- `EMBEDDING_DIM=384` matches `all-MiniLM-L6-v2`. If you switch embedding
-  models later, update this **and** the column definition in `schema.sql`
-  together, or search will break silently.
+Health check:
+- http://localhost:8000/health
+
+---
+
+## 3) Frontend setup
+
+Open a second terminal and run:
+
+```powershell
+cd "D:\Internship\Code Celix\AI_Intelligence_Meeting\AI_Meeting_Intelligence_System_project\Frontend"
+npm install
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+Then open:
+- http://localhost:5173
+
+---
+
+## 4) Run the full project
+
+To run the complete application locally:
+
+1. Start the backend in one terminal.
+2. Start the frontend in another terminal.
+3. Open the frontend URL in the browser.
+4. Use the app to upload or simulate a meeting and test the AI workflow.
+
+---
+
+## 5) Run tests
+
+From the project root:
+
+```powershell
+pytest -q test_qa_service.py tests/test_api.py
+```
+
+This verifies the backend Q&A and API functionality.
+
+---
+
+## 6) Notes
+
+- The backend supports local demo behavior even without a paid AI key.
+- The project is structured so the FastAPI backend can connect with the frontend, AI service, database, and processing modules.
+- If you want a full database-backed setup, configure PostgreSQL and set the appropriate environment variables.
+
+---
+
+## 7) Backend integration role
+
+This project includes the backend and integration layer responsible for:
+- FastAPI APIs
+- frontend-to-AI communication
+- database connection and persistence
+- processing pipeline orchestration
+- structured meeting intelligence delivery
+
+This is the core integration point connecting all modules into one working system.
